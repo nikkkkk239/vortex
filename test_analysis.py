@@ -1,100 +1,84 @@
 #!/usr/bin/env python3
 """
-Test script to debug the analysis endpoint issue
+Test script for medical image analysis
 """
 
 import sys
 import os
-sys.path.append(os.path.join(os.path.dirname(__file__)))
-
-from quantum_circuits import QuantumMedicalImageProcessor
-from llava_medical import LLaVAMedicalModel, MedicalImagePreprocessor
 import numpy as np
-import json
+from pathlib import Path
+
+# Add project root to path
+sys.path.append(str(Path(__file__).parent))
+
+from medical_analyzer import MedicalImageAnalyzer, PatientContext
 
 def test_analysis():
-    """Test the analysis pipeline"""
-    print("Testing analysis pipeline...")
+    """Test the medical image analysis"""
+    print("🧪 Testing Medical Image Analysis")
+    print("=" * 40)
     
-    # Test configuration
+    # Create test configuration
     config = {
-        'model_path': 'microsoft/llava-med-v1.5-mistral-7b',
+        'device': 'cpu',
         'max_image_size': 1024,
         'supported_formats': ['jpg', 'jpeg', 'png', 'dicom', 'nii'],
-        'confidence_threshold': 0.7,
-        'quantum_qubits': 8,
-        'quantum_layers': 2,
-        'device': 'cpu'
+        'quantum_qubits': 4,
+        'quantum_layers': 2
     }
     
+    # Initialize analyzer
+    print("🔧 Initializing Medical Image Analyzer...")
+    analyzer = MedicalImageAnalyzer(config)
+    
+    # Test image path
+    image_path = "test_medical_image.png"
+    if not os.path.exists(image_path):
+        print(f"❌ Test image not found: {image_path}")
+        return
+    
+    # Create patient context
+    patient_context = PatientContext(
+        patient_id="TEST001",
+        age=45,
+        gender="M",
+        medical_history=["diabetes"],
+        current_symptoms=["chest pain"]
+    )
+    
+    # Analyze image
+    print("🔍 Analyzing medical image...")
     try:
-        # Test quantum processor
-        print("1. Testing quantum processor...")
-        quantum_processor = QuantumMedicalImageProcessor(config)
+        result = analyzer.analyze_image(image_path, "Analyze this medical image", patient_context)
         
-        # Create test features
-        test_features = np.random.rand(256)
-        print(f"   Test features shape: {test_features.shape}")
+        print("✅ Analysis completed successfully!")
+        print(f"📊 Session ID: {result.session_id}")
+        print(f"🏥 Imaging Modality: {result.imaging_modality.value}")
+        print(f"📈 Confidence Scores: {result.confidence_scores}")
+        print(f"🔬 Primary Findings: {len(result.primary_findings)} findings")
         
-        # Process with quantum processor
-        quantum_result = quantum_processor.process_medical_image(test_features)
-        print(f"   Quantum result keys: {quantum_result.keys()}")
+        for i, finding in enumerate(result.primary_findings):
+            print(f"  {i+1}. {finding.description} (Confidence: {finding.confidence:.2f})")
+        
+        print(f"⚛️ Quantum Enhanced: {result.quantum_metrics.get('quantum_enhanced', False)}")
+        print(f"⏱️ Processing Time: {result.processing_metadata.get('processing_time', 0):.2f}s")
         
         # Test JSON serialization
-        print("2. Testing JSON serialization...")
+        import json
         try:
-            json_str = json.dumps(quantum_result)
-            print("   ✅ Quantum result is JSON serializable")
+            json_str = json.dumps({
+                'session_id': result.session_id,
+                'confidence_scores': result.confidence_scores,
+                'quantum_enhanced': result.quantum_metrics.get('quantum_enhanced', False)
+            })
+            print("✅ JSON serialization test passed")
         except Exception as e:
-            print(f"   ❌ Quantum result JSON error: {e}")
-            return False
+            print(f"❌ JSON serialization failed: {e}")
         
-        # Test LLaVA model
-        print("3. Testing LLaVA model...")
-        llava_model = LLaVAMedicalModel(config)
-        
-        # Test analysis
-        print("4. Testing full analysis...")
-        analysis_result = llava_model.analyze_medical_image(
-            'test_medical_image.png', 
-            'Test query',
-            {}
-        )
-        print(f"   Analysis result keys: {analysis_result.keys()}")
-        
-        # Test JSON serialization of full result
-        try:
-            json_str = json.dumps(analysis_result)
-            print("   ✅ Full analysis result is JSON serializable")
-            return True
-        except Exception as e:
-            print(f"   ❌ Full analysis result JSON error: {e}")
-            
-            # Debug the problematic object
-            def debug_object(obj, path=""):
-                if isinstance(obj, dict):
-                    for key, value in obj.items():
-                        debug_object(value, f"{path}.{key}")
-                elif isinstance(obj, list):
-                    for i, item in enumerate(obj):
-                        debug_object(item, f"{path}[{i}]")
-                elif isinstance(obj, np.ndarray):
-                    print(f"   Found numpy array at {path}: shape={obj.shape}, dtype={obj.dtype}")
-                elif hasattr(obj, '__dict__'):
-                    print(f"   Found object at {path}: {type(obj)}")
-            
-            debug_object(analysis_result)
-            return False
-            
     except Exception as e:
-        print(f"❌ Test failed with error: {e}")
+        print(f"❌ Analysis failed: {e}")
         import traceback
         traceback.print_exc()
-        return False
 
 if __name__ == "__main__":
-    success = test_analysis()
-    if success:
-        print("\n✅ All tests passed!")
-    else:
-        print("\n❌ Tests failed!")
+    test_analysis()

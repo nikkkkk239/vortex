@@ -349,7 +349,26 @@ class LLaVAMedicalModel:
                 }
             }
             
-            return analysis_results
+            # Ensure all numpy arrays are converted to lists for JSON serialization
+            def convert_numpy(obj):
+                if isinstance(obj, np.ndarray):
+                    return obj.tolist()
+                elif isinstance(obj, np.integer):
+                    return int(obj)
+                elif isinstance(obj, np.floating):
+                    return float(obj)
+                elif isinstance(obj, np.bool_):
+                    return bool(obj)
+                elif isinstance(obj, dict):
+                    return {key: convert_numpy(value) for key, value in obj.items()}
+                elif isinstance(obj, list):
+                    return [convert_numpy(item) for item in obj]
+                elif isinstance(obj, tuple):
+                    return tuple(convert_numpy(item) for item in obj)
+                else:
+                    return obj
+            
+            return convert_numpy(analysis_results)
             
         except Exception as e:
             logger.error(f"Error analyzing medical image: {str(e)}")

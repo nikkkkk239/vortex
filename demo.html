@@ -13,45 +13,220 @@
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #000;
             min-height: 100vh;
-            color: #333;
+            color: #fff;
+            overflow-x: hidden;
+            position: relative;
+        }
+        
+        /* Animated gradient background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(45deg, 
+                #000000 0%, 
+                #1a1a1a 25%, 
+                #333333 50%, 
+                #1a1a1a 75%, 
+                #000000 100%);
+            background-size: 400% 400%;
+            animation: gradientShift 8s ease infinite;
+            z-index: -2;
+        }
+        
+        /* Moving particles effect */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                radial-gradient(2px 2px at 20px 30px, #fff, transparent),
+                radial-gradient(2px 2px at 40px 70px, #fff, transparent),
+                radial-gradient(1px 1px at 90px 40px, #fff, transparent),
+                radial-gradient(1px 1px at 130px 80px, #fff, transparent),
+                radial-gradient(2px 2px at 160px 30px, #fff, transparent);
+            background-repeat: repeat;
+            background-size: 200px 100px;
+            animation: particleMove 20s linear infinite;
+            z-index: -1;
+            opacity: 0.1;
+        }
+        
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        @keyframes particleMove {
+            0% { transform: translateY(0px); }
+            100% { transform: translateY(-100px); }
+        }
+        
+        /* Floating geometric shapes */
+        .floating-shapes {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: -1;
+        }
+        
+        .shape {
+            position: absolute;
+            opacity: 0.05;
+            animation: float 15s infinite ease-in-out;
+        }
+        
+        .shape:nth-child(1) {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(45deg, #fff, #ccc);
+            border-radius: 20px;
+            top: 10%;
+            left: 10%;
+            animation-delay: 0s;
+        }
+        
+        .shape:nth-child(2) {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(45deg, #ccc, #fff);
+            border-radius: 50%;
+            top: 20%;
+            right: 10%;
+            animation-delay: 3s;
+        }
+        
+        .shape:nth-child(3) {
+            width: 100px;
+            height: 100px;
+            background: linear-gradient(45deg, #fff, #999);
+            clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+            bottom: 20%;
+            left: 20%;
+            animation-delay: 6s;
+        }
+        
+        .shape:nth-child(4) {
+            width: 70px;
+            height: 70px;
+            background: linear-gradient(45deg, #999, #fff);
+            border-radius: 10px;
+            bottom: 30%;
+            right: 20%;
+            animation-delay: 9s;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            25% { transform: translateY(-20px) rotate(90deg); }
+            50% { transform: translateY(-40px) rotate(180deg); }
+            75% { transform: translateY(-20px) rotate(270deg); }
         }
         
         .container {
             max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
+            position: relative;
+            z-index: 1;
         }
         
         .header {
             text-align: center;
             color: white;
             margin-bottom: 40px;
+            position: relative;
         }
         
         .header h1 {
             font-size: 2.5rem;
             margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            background: linear-gradient(45deg, #fff, #ccc, #fff);
+            background-size: 200% 200%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: textShimmer 3s ease-in-out infinite;
+            text-shadow: 0 0 30px rgba(255,255,255,0.3);
+            position: relative;
+        }
+        
+        .header h1::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
+            animation: shimmer 2s infinite;
         }
         
         .header p {
             font-size: 1.2rem;
-            opacity: 0.9;
+            opacity: 0.8;
+            color: #ccc;
+            text-shadow: 0 0 10px rgba(255,255,255,0.2);
+        }
+        
+        @keyframes textShimmer {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
         }
         
         .main-content {
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.3), 0 0 100px rgba(255,255,255,0.1);
             overflow: hidden;
+            position: relative;
+        }
+        
+        .main-content::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, 
+                rgba(255,255,255,0.1) 0%, 
+                rgba(255,255,255,0.05) 50%, 
+                rgba(255,255,255,0.1) 100%);
+            animation: contentShimmer 4s ease-in-out infinite;
+            z-index: -1;
+        }
+        
+        @keyframes contentShimmer {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 0.6; }
         }
         
         .tabs {
             display: flex;
-            background: #f8f9fa;
-            border-bottom: 1px solid #dee2e6;
+            background: rgba(255, 255, 255, 0.08);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
         }
         
         .tab {
@@ -63,23 +238,44 @@
             background: none;
             font-size: 1rem;
             font-weight: 600;
-            color: #6c757d;
+            color: #ccc;
             transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .tab::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .tab:hover::before {
+            opacity: 1;
         }
         
         .tab.active {
-            background: white;
-            color: #2E86AB;
-            border-bottom: 3px solid #2E86AB;
+            background: rgba(255, 255, 255, 0.15);
+            color: #fff;
+            border-bottom: 3px solid #fff;
+            box-shadow: 0 0 20px rgba(255,255,255,0.2);
         }
         
         .tab:hover {
-            background: #e9ecef;
+            color: #fff;
+            background: rgba(255, 255, 255, 0.1);
         }
         
         .tab-content {
             padding: 40px;
             display: none;
+            position: relative;
+            z-index: 1;
         }
         
         .tab-content.active {
@@ -87,40 +283,71 @@
         }
         
         .upload-area {
-            border: 3px dashed #2E86AB;
-            border-radius: 10px;
+            border: 3px dashed rgba(255, 255, 255, 0.3);
+            border-radius: 15px;
             padding: 60px 20px;
             text-align: center;
             margin-bottom: 30px;
             cursor: pointer;
             transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.02);
+            backdrop-filter: blur(10px);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .upload-area::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            transition: left 0.5s ease;
+        }
+        
+        .upload-area:hover::before {
+            left: 100%;
         }
         
         .upload-area:hover {
-            border-color: #A23B72;
-            background: #f8f9ff;
+            border-color: rgba(255, 255, 255, 0.6);
+            background: rgba(255, 255, 255, 0.05);
+            box-shadow: 0 0 30px rgba(255,255,255,0.1);
+            transform: translateY(-2px);
         }
         
         .upload-area.dragover {
-            border-color: #F18F01;
-            background: #fff8f0;
+            border-color: rgba(255, 255, 255, 0.8);
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 0 40px rgba(255,255,255,0.2);
         }
         
         .upload-icon {
             font-size: 4rem;
-            color: #2E86AB;
+            color: #fff;
             margin-bottom: 20px;
+            text-shadow: 0 0 20px rgba(255,255,255,0.3);
+            animation: iconPulse 2s ease-in-out infinite;
         }
         
         .upload-text {
             font-size: 1.2rem;
-            color: #6c757d;
+            color: #fff;
             margin-bottom: 10px;
+            text-shadow: 0 0 10px rgba(255,255,255,0.2);
         }
         
         .upload-subtext {
             font-size: 0.9rem;
-            color: #adb5bd;
+            color: #ccc;
+            opacity: 0.8;
+        }
+        
+        @keyframes iconPulse {
+            0%, 100% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(1.1); opacity: 1; }
         }
         
         .file-input {
@@ -128,89 +355,142 @@
         }
         
         .btn {
-            background: linear-gradient(135deg, #2E86AB, #A23B72);
+            background: linear-gradient(135deg, rgba(255,255,255,0.2), rgba(255,255,255,0.1));
             color: white;
-            border: none;
+            border: 1px solid rgba(255, 255, 255, 0.3);
             padding: 15px 30px;
-            border-radius: 8px;
+            border-radius: 12px;
             font-size: 1rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
             margin: 10px;
+            backdrop-filter: blur(10px);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s ease;
+        }
+        
+        .btn:hover::before {
+            left: 100%;
         }
         
         .btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(46, 134, 171, 0.3);
+            box-shadow: 0 15px 30px rgba(255,255,255,0.2);
+            border-color: rgba(255, 255, 255, 0.5);
+            background: linear-gradient(135deg, rgba(255,255,255,0.3), rgba(255,255,255,0.2));
         }
         
         .btn:disabled {
-            background: #6c757d;
+            background: rgba(255,255,255,0.1);
             cursor: not-allowed;
             transform: none;
             box-shadow: none;
+            opacity: 0.5;
+            border-color: rgba(255, 255, 255, 0.1);
         }
         
         .btn-secondary {
-            background: linear-gradient(135deg, #6c757d, #495057);
+            background: linear-gradient(135deg, rgba(255,255,255,0.15), rgba(255,255,255,0.05));
+            border-color: rgba(255, 255, 255, 0.2);
         }
         
         .analysis-section {
             margin-top: 30px;
             padding: 30px;
-            background: #f8f9fa;
-            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
         }
         
         .progress-bar {
             width: 100%;
             height: 8px;
-            background: #e9ecef;
-            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
             overflow: hidden;
             margin: 20px 0;
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
         
         .progress-fill {
             height: 100%;
-            background: linear-gradient(90deg, #2E86AB, #A23B72);
+            background: linear-gradient(90deg, rgba(255,255,255,0.8), rgba(255,255,255,0.6));
             width: 0%;
             transition: width 0.5s ease;
+            box-shadow: 0 0 10px rgba(255,255,255,0.3);
+            animation: progressGlow 2s ease-in-out infinite;
+        }
+        
+        @keyframes progressGlow {
+            0%, 100% { box-shadow: 0 0 10px rgba(255,255,255,0.3); }
+            50% { box-shadow: 0 0 20px rgba(255,255,255,0.5); }
         }
         
         .result-card {
-            background: white;
-            border-radius: 10px;
-            padding: 20px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 15px;
+            padding: 25px;
             margin: 20px 0;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(15px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease;
+        }
+        
+        .result-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
         }
         
         .confidence-meter {
             display: flex;
             align-items: center;
             margin: 15px 0;
+            color: #fff;
         }
         
         .confidence-bar {
             flex: 1;
-            height: 10px;
-            background: #e9ecef;
-            border-radius: 5px;
+            height: 12px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
             margin: 0 15px;
             overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
         
         .confidence-fill {
             height: 100%;
-            border-radius: 5px;
+            border-radius: 8px;
             transition: width 0.8s ease;
+            box-shadow: 0 0 10px rgba(255,255,255,0.3);
         }
         
-        .confidence-high { background: #28a745; }
-        .confidence-medium { background: #ffc107; }
-        .confidence-low { background: #dc3545; }
+        .confidence-high { 
+            background: linear-gradient(90deg, rgba(255,255,255,0.9), rgba(255,255,255,0.7));
+            box-shadow: 0 0 15px rgba(255,255,255,0.4);
+        }
+        .confidence-medium { 
+            background: linear-gradient(90deg, rgba(255,255,255,0.7), rgba(255,255,255,0.5));
+            box-shadow: 0 0 12px rgba(255,255,255,0.3);
+        }
+        .confidence-low { 
+            background: linear-gradient(90deg, rgba(255,255,255,0.5), rgba(255,255,255,0.3));
+            box-shadow: 0 0 8px rgba(255,255,255,0.2);
+        }
         
         .feature-grid {
             display: grid;
@@ -220,61 +500,98 @@
         }
         
         .feature-card {
-            background: white;
+            background: rgba(255, 255, 255, 0.08);
             padding: 30px;
-            border-radius: 15px;
+            border-radius: 20px;
             text-align: center;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            transition: transform 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(15px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, transparent, rgba(255,255,255,0.05), transparent);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .feature-card:hover::before {
+            opacity: 1;
         }
         
         .feature-card:hover {
-            transform: translateY(-5px);
+            transform: translateY(-8px);
+            box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+            border-color: rgba(255, 255, 255, 0.2);
         }
         
         .feature-icon {
             font-size: 3rem;
             margin-bottom: 20px;
+            color: #fff;
+            text-shadow: 0 0 20px rgba(255,255,255,0.3);
+            animation: iconFloat 3s ease-in-out infinite;
         }
         
         .feature-title {
             font-size: 1.3rem;
             font-weight: 600;
             margin-bottom: 15px;
-            color: #2E86AB;
+            color: #fff;
+            text-shadow: 0 0 10px rgba(255,255,255,0.2);
         }
         
         .feature-description {
-            color: #6c757d;
+            color: #ccc;
             line-height: 1.6;
+            opacity: 0.9;
+        }
+        
+        @keyframes iconFloat {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-5px); }
         }
         
         .chat-container {
             max-height: 500px;
             overflow-y: auto;
-            border: 1px solid #dee2e6;
-            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
             padding: 20px;
             margin-bottom: 20px;
-            background: #f8f9fa;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
         }
         
         .chat-message {
             margin-bottom: 15px;
             padding: 15px;
-            border-radius: 10px;
+            border-radius: 12px;
             max-width: 80%;
+            backdrop-filter: blur(5px);
         }
         
         .chat-message.user {
-            background: #2E86AB;
+            background: rgba(255, 255, 255, 0.2);
             color: white;
             margin-left: auto;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 5px 15px rgba(255,255,255,0.1);
         }
         
         .chat-message.assistant {
-            background: white;
-            border: 1px solid #dee2e6;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
         }
         
         .chat-input-container {
@@ -285,16 +602,27 @@
         .chat-input {
             flex: 1;
             padding: 15px;
-            border: 2px solid #dee2e6;
-            border-radius: 8px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
             font-size: 1rem;
             resize: vertical;
             min-height: 50px;
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
         }
         
         .chat-input:focus {
             outline: none;
-            border-color: #2E86AB;
+            border-color: rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 20px rgba(255,255,255,0.1);
+        }
+        
+        .chat-input::placeholder {
+            color: #ccc;
+            opacity: 0.8;
         }
         
         .dashboard-grid {
@@ -305,39 +633,51 @@
         }
         
         .metric-card {
-            background: white;
+            background: rgba(255, 255, 255, 0.08);
             padding: 25px;
-            border-radius: 10px;
+            border-radius: 15px;
             text-align: center;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(15px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease;
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
         }
         
         .metric-value {
             font-size: 2.5rem;
             font-weight: bold;
-            color: #2E86AB;
+            color: #fff;
             margin-bottom: 10px;
+            text-shadow: 0 0 15px rgba(255,255,255,0.3);
         }
         
         .metric-label {
-            color: #6c757d;
+            color: #ccc;
             font-weight: 600;
+            opacity: 0.9;
         }
         
         .loading {
             display: none;
             text-align: center;
             padding: 40px;
+            color: #fff;
         }
         
         .spinner {
-            width: 40px;
-            height: 40px;
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #2E86AB;
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(255, 255, 255, 0.2);
+            border-top: 3px solid #fff;
             border-radius: 50%;
             animation: spin 1s linear infinite;
             margin: 0 auto 20px;
+            box-shadow: 0 0 20px rgba(255,255,255,0.3);
         }
         
         @keyframes spin {
@@ -347,26 +687,31 @@
         
         .alert {
             padding: 15px;
-            border-radius: 8px;
+            border-radius: 12px;
             margin: 20px 0;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
         
         .alert-success {
-            background: #d4edda;
-            border: 1px solid #c3e6cb;
-            color: #155724;
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.3);
+            color: #fff;
+            box-shadow: 0 0 20px rgba(255,255,255,0.1);
         }
         
         .alert-error {
-            background: #f8d7da;
-            border: 1px solid #f5c6cb;
-            color: #721c24;
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.2);
+            color: #fff;
+            box-shadow: 0 0 20px rgba(255,255,255,0.05);
         }
         
         .alert-warning {
-            background: #fff3cd;
-            border: 1px solid #ffeaa7;
-            color: #856404;
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(255, 255, 255, 0.25);
+            color: #fff;
+            box-shadow: 0 0 20px rgba(255,255,255,0.08);
         }
         
         @media (max-width: 768px) {
@@ -389,25 +734,33 @@
     </style>
 </head>
 <body>
+    <!-- Floating geometric shapes -->
+    <div class="floating-shapes">
+        <div class="shape"></div>
+        <div class="shape"></div>
+        <div class="shape"></div>
+        <div class="shape"></div>
+    </div>
+    
     <div class="container">
         <div class="header">
-            <h1>🧠 Quantum-Enhanced Medical Imaging AI</h1>
+            <h1> Quantum-Enhanced Medical Imaging AI</h1>
             <p>Advanced Medical Image Analysis with Quantum Computing & Explainable AI</p>
         </div>
         
         <div class="main-content">
             <div class="tabs">
-                <button class="tab active" onclick="switchTab('analyze')">🔍 Analyze</button>
-                <button class="tab" onclick="switchTab('chat')">💬 Chat</button>
-                <button class="tab" onclick="switchTab('dashboard')">📊 Dashboard</button>
-                <button class="tab" onclick="switchTab('about')">ℹ️ About</button>
+                <button class="tab active" onclick="switchTab('analyze')"> Analyze</button>
+                <button class="tab" onclick="switchTab('chat')"> Chat</button>
+                <button class="tab" onclick="switchTab('dashboard')"> Dashboard</button>
+                <button class="tab" onclick="switchTab('about')"> About</button>
             </div>
             
             <!-- Analyze Tab -->
             <div id="analyze" class="tab-content active">
                 <div class="upload-area" onclick="document.getElementById('fileInput').click()" 
                      ondrop="handleDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
-                    <div class="upload-icon">📁</div>
+                    <div class="upload-icon"></div>
                     <div class="upload-text">Drag & drop medical images here</div>
                     <div class="upload-subtext">Supports DICOM, NIfTI, JPG, PNG formats</div>
                     <input type="file" id="fileInput" class="file-input" accept=".dcm,.nii,.nii.gz,.jpg,.jpeg,.png" onchange="handleFileSelect(event)">
@@ -415,10 +768,10 @@
                 
                 <div style="text-align: center;">
                     <button class="btn" onclick="startAnalysis()" id="analyzeBtn" disabled>
-                        🚀 Start Quantum Analysis
+                         Start Quantum Analysis
                     </button>
                     <button class="btn btn-secondary" onclick="useDemo()">
-                        🎭 Use Demo Image
+                         Use Demo Image
                     </button>
                 </div>
                 
@@ -431,7 +784,7 @@
                 </div>
                 
                 <div class="analysis-section" id="analysisResults" style="display: none;">
-                    <h3>🧬 Analysis Results</h3>
+                    <h3> Analysis Results</h3>
                     <div id="resultsContent"></div>
                 </div>
             </div>
@@ -458,7 +811,7 @@
             
             <!-- Dashboard Tab -->
             <div id="dashboard" class="tab-content">
-                <h3>📈 System Dashboard</h3>
+                <h3> System Dashboard</h3>
                 
                 <div class="dashboard-grid">
                     <div class="metric-card">
@@ -480,7 +833,7 @@
                 </div>
                 
                 <div class="result-card">
-                    <h4>🔄 Recent Activity</h4>
+                    <h4 Recent Activity</h4>
                     <div id="recentActivity">
                         <p style="color: #6c757d; text-align: center; padding: 20px;">
                             No recent analyses. Start by uploading a medical image in the Analyze tab.
@@ -491,11 +844,11 @@
             
             <!-- About Tab -->
             <div id="about" class="tab-content">
-                <h3>🌟 About This System</h3>
+                <h3> About This System</h3>
                 
                 <div class="feature-grid">
                     <div class="feature-card">
-                        <div class="feature-icon">⚛️</div>
+                        <div class="feature-icon"></div>
                         <div class="feature-title">Quantum Enhancement</div>
                         <div class="feature-description">
                             Leverages quantum computing for advanced feature extraction and uncertainty quantification,
@@ -504,7 +857,7 @@
                     </div>
                     
                     <div class="feature-card">
-                        <div class="feature-icon">🧠</div>
+                        <div class="feature-icon"></div>
                         <div class="feature-title">LLaVA-Med Integration</div>
                         <div class="feature-description">
                             Built on Microsoft's LLaVA-Med v1.5 with Mistral-7B, specifically fine-tuned for
@@ -513,7 +866,7 @@
                     </div>
                     
                     <div class="feature-card">
-                        <div class="feature-icon">🔍</div>
+                        <div class="feature-icon"></div>
                         <div class="feature-title">Explainable AI</div>
                         <div class="feature-description">
                             Implements Grad-CAM, LIME, and SHAP for transparent decision-making,
@@ -522,7 +875,7 @@
                     </div>
                     
                     <div class="feature-card">
-                        <div class="feature-icon">🏥</div>
+                        <div class="feature-icon"></div>
                         <div class="feature-title">HIPAA Compliant</div>
                         <div class="feature-description">
                             Designed with healthcare privacy and security in mind, including encrypted data handling
@@ -531,7 +884,7 @@
                     </div>
                     
                     <div class="feature-card">
-                        <div class="feature-icon">📊</div>
+                        <div class="feature-icon"></div>
                         <div class="feature-title">Clinical Dashboard</div>
                         <div class="feature-description">
                             Interactive analytics dashboard with confidence metrics, finding distributions,
@@ -540,7 +893,7 @@
                     </div>
                     
                     <div class="feature-card">
-                        <div class="feature-icon">🤖</div>
+                        <div class="feature-icon"></div>
                         <div class="feature-title">AI Consultation</div>
                         <div class="feature-description">
                             GPT-4 Vision integrated medical chatbot providing doctor-perspective insights
@@ -550,7 +903,7 @@
                 </div>
                 
                 <div class="result-card">
-                    <h4>🛠️ Technical Specifications</h4>
+                    <h4>Technical Specifications</h4>
                     <ul style="line-height: 1.8; color: #6c757d;">
                         <li><strong>Quantum Framework:</strong> Qiskit 0.45.0+ with PennyLane integration</li>
                         <li><strong>Vision Model:</strong> Microsoft LLaVA-Med v1.5 (Mistral-7B)</li>
@@ -567,6 +920,21 @@
     <script>
         let selectedFile = null;
         let analysisHistory = [];
+        
+        // Arrays for random analysis values
+        const confidenceValues = [];
+        const processingTimes = [];
+        const riskLevels = ['Low', 'Medium', 'High'];
+        
+        // Generate confidence values from 75% to 100%
+        for (let i = 75; i <= 100; i++) {
+            confidenceValues.push(i);
+        }
+        
+        // Generate processing times from 1 to 5 seconds
+        for (let i = 1; i <= 47; i++) {
+            processingTimes.push((i / 10).toFixed(1)); // 0.1 to 5.0 seconds
+        }
         
         // Tab switching
         function switchTab(tabName) {
@@ -654,21 +1022,60 @@
         }
         
         function showAnalysisResults() {
-            // Simulate analysis results
-            const results = {
-                primaryFindings: [
-                    { description: "No acute cardiopulmonary process", confidence: 0.92 },
-                    { description: "Normal heart size and mediastinal contours", confidence: 0.88 },
-                    { description: "Clear lung fields bilaterally", confidence: 0.94 }
-                ],
-                overallConfidence: 0.91,
-                quantumEnhanced: true,
-                processingTime: 3.2,
-                riskAssessment: "Low",
-                recommendations: [
+            // Get random values from arrays
+            const randomConfidence = confidenceValues[Math.floor(Math.random() * confidenceValues.length)] / 100;
+            const randomProcessingTime = parseFloat(processingTimes[Math.floor(Math.random() * processingTimes.length)]);
+            const randomRiskLevel = riskLevels[Math.floor(Math.random() * riskLevels.length)];
+            
+            // Generate random confidence for individual findings (75-100%)
+            const findingConfidence1 = confidenceValues[Math.floor(Math.random() * confidenceValues.length)] / 100;
+            const findingConfidence2 = confidenceValues[Math.floor(Math.random() * confidenceValues.length)] / 100;
+            const findingConfidence3 = confidenceValues[Math.floor(Math.random() * confidenceValues.length)] / 100;
+            
+            // Generate recommendations based on risk level
+            let recommendations = [];
+            if (randomRiskLevel === 'Low') {
+                recommendations = [
                     "Routine follow-up as clinically indicated",
                     "No acute intervention required"
-                ]
+                ];
+            } else if (randomRiskLevel === 'Medium') {
+                recommendations = [
+                    "Close monitoring recommended",
+                    "Consider follow-up imaging in 2-4 weeks",
+                    "Patient education on symptom monitoring"
+                ];
+            } else {
+                recommendations = [
+                    "Immediate clinical evaluation recommended",
+                    "Consider urgent imaging or specialist consultation",
+                    "Close patient monitoring required"
+                ];
+            }
+            
+            // Log the random values for debugging
+            console.log('Random Analysis Values:');
+            console.log('Overall Confidence:', (randomConfidence * 100).toFixed(1) + '%');
+            console.log('Processing Time:', randomProcessingTime + 's');
+            console.log('Risk Level:', randomRiskLevel);
+            console.log('Finding Confidences:', [
+                (findingConfidence1 * 100).toFixed(1) + '%',
+                (findingConfidence2 * 100).toFixed(1) + '%',
+                (findingConfidence3 * 100).toFixed(1) + '%'
+            ]);
+            
+            // Simulate analysis results with random values
+            const results = {
+                primaryFindings: [
+                    { description: "No acute cardiopulmonary process", confidence: findingConfidence1 },
+                    { description: "Normal heart size and mediastinal contours", confidence: findingConfidence2 },
+                    { description: "Clear lung fields bilaterally", confidence: findingConfidence3 }
+                ],
+                overallConfidence: randomConfidence,
+                quantumEnhanced: true,
+                processingTime: randomProcessingTime,
+                riskAssessment: randomRiskLevel,
+                recommendations: recommendations
             };
             
             // Add to history
@@ -684,7 +1091,7 @@
                 
                 const resultsHtml = `
                     <div class="result-card">
-                        <h4>🎯 Primary Findings</h4>
+                        <h4> Primary Findings</h4>
                         ${results.primaryFindings.map(finding => `
                             <div style="margin: 15px 0;">
                                 <strong>${finding.description}</strong>
@@ -701,7 +1108,7 @@
                     </div>
                     
                     <div class="result-card">
-                        <h4>📊 Analysis Metrics</h4>
+                        <h4> Analysis Metrics</h4>
                         <div class="dashboard-grid">
                             <div class="metric-card">
                                 <div class="metric-value">${(results.overallConfidence * 100).toFixed(1)}%</div>
@@ -723,7 +1130,7 @@
                     </div>
                     
                     <div class="result-card">
-                        <h4>💡 Clinical Recommendations</h4>
+                        <h4> Clinical Recommendations</h4>
                         <ul style="line-height: 1.8;">
                             ${results.recommendations.map(rec => `<li>${rec}</li>`).join('')}
                         </ul>
