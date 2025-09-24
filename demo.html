@@ -350,6 +350,52 @@
             50% { transform: scale(1.1); opacity: 1; }
         }
         
+        /* Image Preview Styles */
+        .image-previews {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .preview-container {
+            text-align: center;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            min-width: 200px;
+        }
+        
+        .preview-container h4 {
+            color: #fff;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+            text-shadow: 0 0 10px rgba(255,255,255,0.2);
+        }
+        
+        .preview-image {
+            max-width: 200px;
+            max-height: 200px;
+            border-radius: 8px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            transition: transform 0.3s ease;
+        }
+        
+        .preview-image:hover {
+            transform: scale(1.05);
+        }
+        
+        #3dCanvas {
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            background: rgba(0, 0, 0, 0.3);
+        }
+        
         .file-input {
             display: none;
         }
@@ -920,6 +966,13 @@
     <script>
         let selectedFile = null;
         let analysisHistory = [];
+        let animationId = null;
+        let isDragging = false;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+        let rotationX = 0;
+        let rotationY = 0;
+        let depthMap = null;
         
         // Arrays for random analysis values
         const confidenceValues = [];
@@ -974,6 +1027,13 @@
         
         function handleFileSelect(event) {
             selectedFile = event.target.files[0];
+            // Stop any existing animation and reset rotation
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+            rotationX = 0;
+            rotationY = 0;
             updateUploadArea();
         }
         
@@ -982,20 +1042,339 @@
             const analyzeBtn = document.getElementById('analyzeBtn');
             
             if (selectedFile) {
-                uploadArea.innerHTML = `
-                    <div class="upload-icon">✅</div>
-                    <div class="upload-text">File Selected: ${selectedFile.name}</div>
-                    <div class="upload-subtext">Size: ${(selectedFile.size / 1024 / 1024).toFixed(2)} MB</div>
-                `;
+                // Create image preview and 3D visualization
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const imageDataUrl = e.target.result;
+                    
+                    uploadArea.innerHTML = `
+                        <div class="upload-icon"></div>
+                        <div class="upload-text">File Selected: ${selectedFile.name}</div>
+                        <div class="upload-subtext">Size: ${(selectedFile.size / 1024 / 1024).toFixed(2)} MB</div>
+                        
+                        <div class="image-previews">
+                            <div class="preview-container">
+                                <h4>Original 2D Image</h4>
+                                <img src="${imageDataUrl}" alt="Original Image" class="preview-image" id="originalImage">
+                            </div>
+                            <div class="preview-container">
+                                <h4>3D Visualization</h4>
+                                <canvas id="3dCanvas" width="200" height="200"></canvas>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Generate 3D visualization
+                    generate3DPreview(imageDataUrl);
+                };
+                reader.readAsDataURL(selectedFile);
                 analyzeBtn.disabled = false;
             }
         }
         
+        function generate3DPreview(imageDataUrl) {
+            setTimeout(() => {
+                const canvas = document.getElementById('3dCanvas');
+                if (!canvas) return;
+                
+                const ctx = canvas.getContext('2d');
+                const img = new Image();
+                
+                img.onload = function() {
+                    // Create 3D effect by processing the image
+                    create3DEffect(ctx, img, canvas.width, canvas.height);
+                };
+                
+                img.src = imageDataUrl;
+            }, 100);
+        }
+        
+        function create3DEffect(ctx, img, width, height) {
+            // Clear canvas
+            ctx.clearRect(0, 0, width, height);
+            
+            // Create a temporary canvas to process the image
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = width;
+            tempCanvas.height = height;
+            
+            // Draw the original image scaled to canvas size
+            tempCtx.drawImage(img, 0, 0, width, height);
+            
+            // Get image data for processing
+            const imageData = tempCtx.getImageData(0, 0, width, height);
+            const data = imageData.data;
+            
+            // Create 3D depth effect based on pixel intensity
+            depthMap = [];
+            for (let i = 0; i < data.length; i += 4) {
+                // Calculate grayscale intensity
+                const gray = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                // Convert to depth (darker = closer)
+                const depth = (255 - gray) / 255;
+                depthMap.push(depth);
+            }
+            
+            // Reset rotation when new image is loaded
+            rotationX = 0;
+            rotationY = 0;
+            
+            // Draw 3D visualization
+            draw3DVisualization(ctx, depthMap, width, height);
+            
+            // Add mouse event listeners for interaction
+            add3DInteractivity(ctx, width, height);
+        }
+        
+        function draw3DVisualization(ctx, depthMap, width, height) {
+            // Set up 3D rendering parameters
+            const centerX = width / 2;
+            const centerY = height / 2;
+            const maxDepth = 60; // Increased depth for more dramatic effect
+            
+            // Clear canvas with dark background
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.95)';
+            ctx.fillRect(0, 0, width, height);
+            
+            // Draw 3D points with much higher density
+            const step = 2; // Sample every 2 pixels for more dots
+            const points = [];
+            
+            // First pass: collect all points
+            for (let y = 0; y < height; y += step) {
+                for (let x = 0; x < width; x += step) {
+                    const index = y * width + x;
+                    if (index < depthMap.length) {
+                        const depth = depthMap[index];
+                        
+                        // Only draw points with sufficient depth
+                        if (depth > 0.02) {
+                            points.push({
+                                x: x - centerX,
+                                y: y - centerY,
+                                z: depth * maxDepth,
+                                depth: depth
+                            });
+                        }
+                    }
+                }
+            }
+            
+            // Sort points by Z-depth for proper rendering
+            points.sort((a, b) => b.z - a.z);
+            
+            // Second pass: render points
+            points.forEach(point => {
+                // Apply user-controlled rotation
+                const rotatedPoint = rotatePoint(point, rotationX, rotationY);
+                
+                // Project to 2D screen coordinates
+                const scale = 200 / (200 + rotatedPoint.z);
+                const screenX = centerX + rotatedPoint.x * scale;
+                const screenY = centerY + rotatedPoint.y * scale;
+                
+                // Skip points that are behind the camera
+                if (rotatedPoint.z < -50) return;
+                
+                // Set point color and size based on depth
+                const intensity = Math.min(255, point.depth * 255 + 80);
+                const alpha = Math.min(0.9, point.depth * 2);
+                const size = Math.max(0.5, point.depth * 2 + 0.5);
+                
+                ctx.fillStyle = `rgba(${intensity}, ${intensity}, ${intensity}, ${alpha})`;
+                ctx.beginPath();
+                ctx.arc(screenX, screenY, size, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Add subtle glow effect
+                if (point.depth > 0.3) {
+                    ctx.fillStyle = `rgba(${intensity}, ${intensity}, ${intensity}, ${alpha * 0.3})`;
+                    ctx.beginPath();
+                    ctx.arc(screenX, screenY, size * 1.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+            
+            // Add visual effects
+            draw3DEffects(ctx, width, height);
+        }
+        
+        function rotatePoint(point, rotX, rotY) {
+            // Rotate around X axis
+            const cosX = Math.cos(rotX);
+            const sinX = Math.sin(rotX);
+            const y1 = point.y * cosX - point.z * sinX;
+            const z1 = point.y * sinX + point.z * cosX;
+            
+            // Rotate around Y axis
+            const cosY = Math.cos(rotY);
+            const sinY = Math.sin(rotY);
+            const x2 = point.x * cosY + z1 * sinY;
+            const z2 = -point.x * sinY + z1 * cosY;
+            
+            return { x: x2, y: y1, z: z2 };
+        }
+        
+        function draw3DEffects(ctx, width, height) {
+            // Add subtle grid lines for 3D reference
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+            ctx.lineWidth = 1;
+            
+            // Vertical grid lines
+            for (let i = 0; i < width; i += 25) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, height);
+                ctx.stroke();
+            }
+            
+            // Horizontal grid lines
+            for (let i = 0; i < height; i += 25) {
+                ctx.beginPath();
+                ctx.moveTo(0, i);
+                ctx.lineTo(width, i);
+                ctx.stroke();
+            }
+            
+            // Add interaction instructions
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Drag to rotate', width / 2, height - 10);
+        }
+        
+        function add3DInteractivity(ctx, width, height) {
+            const canvas = document.getElementById('3dCanvas');
+            if (!canvas) return;
+            
+            // Mouse events for rotation
+            canvas.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+                canvas.style.cursor = 'grabbing';
+            });
+            
+            canvas.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                
+                const deltaX = e.clientX - lastMouseX;
+                const deltaY = e.clientY - lastMouseY;
+                
+                // Update rotation based on mouse movement
+                rotationY += deltaX * 0.01;
+                rotationX += deltaY * 0.01;
+                
+                // Limit vertical rotation to prevent flipping
+                rotationX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, rotationX));
+                
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+                
+                // Redraw the 3D visualization
+                if (depthMap) {
+                    draw3DVisualization(ctx, depthMap, width, height);
+                }
+            });
+            
+            canvas.addEventListener('mouseup', () => {
+                isDragging = false;
+                canvas.style.cursor = 'grab';
+            });
+            
+            canvas.addEventListener('mouseleave', () => {
+                isDragging = false;
+                canvas.style.cursor = 'grab';
+            });
+            
+            // Touch events for mobile devices
+            canvas.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                isDragging = true;
+                const touch = e.touches[0];
+                lastMouseX = touch.clientX;
+                lastMouseY = touch.clientY;
+            });
+            
+            canvas.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                if (!isDragging) return;
+                
+                const touch = e.touches[0];
+                const deltaX = touch.clientX - lastMouseX;
+                const deltaY = touch.clientY - lastMouseY;
+                
+                rotationY += deltaX * 0.01;
+                rotationX += deltaY * 0.01;
+                
+                rotationX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, rotationX));
+                
+                lastMouseX = touch.clientX;
+                lastMouseY = touch.clientY;
+                
+                if (depthMap) {
+                    draw3DVisualization(ctx, depthMap, width, height);
+                }
+            });
+            
+            canvas.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                isDragging = false;
+            });
+            
+            // Set initial cursor style
+            canvas.style.cursor = 'grab';
+        }
+        
         function useDemo() {
-            // Simulate demo file selection
+            // Simulate demo file selection with a demo image
+            const demoImageUrl = 'data:image/svg+xml;base64,' + btoa(`
+                <svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <radialGradient id="grad" cx="50%" cy="50%" r="50%">
+                            <stop offset="0%" style="stop-color:white;stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:black;stop-opacity:1" />
+                        </radialGradient>
+                    </defs>
+                    <rect width="200" height="200" fill="url(#grad)"/>
+                    <circle cx="100" cy="80" r="30" fill="rgba(255,255,255,0.3)"/>
+                    <ellipse cx="100" cy="120" rx="40" ry="20" fill="rgba(255,255,255,0.2)"/>
+                    <rect x="80" y="140" width="40" height="20" fill="rgba(255,255,255,0.4)"/>
+                </svg>
+            `);
+            
             selectedFile = { name: 'demo_chest_xray.jpg', size: 2.5 * 1024 * 1024 };
-            updateUploadArea();
-            showAlert('Demo image loaded! You can now start the analysis.', 'success');
+            
+            // Update upload area with demo content
+            const uploadArea = document.querySelector('.upload-area');
+            const analyzeBtn = document.getElementById('analyzeBtn');
+            
+            uploadArea.innerHTML = `
+                <div class="upload-icon">✅</div>
+                <div class="upload-text">File Selected: ${selectedFile.name}</div>
+                <div class="upload-subtext">Size: ${(selectedFile.size / 1024 / 1024).toFixed(2)} MB</div>
+                
+                <div class="image-previews">
+                    <div class="preview-container">
+                        <h4>Original 2D Image</h4>
+                        <img src="${demoImageUrl}" alt="Demo Image" class="preview-image" id="originalImage">
+                    </div>
+                    <div class="preview-container">
+                        <h4>3D Visualization</h4>
+                        <canvas id="3dCanvas" width="200" height="200"></canvas>
+                    </div>
+                </div>
+            `;
+            
+            // Reset rotation for demo
+            rotationX = 0;
+            rotationY = 0;
+            
+            // Generate 3D preview for demo
+            generate3DPreview(demoImageUrl);
+            analyzeBtn.disabled = false;
+            showAlert('Demo image loaded! Drag the 3D visualization to rotate it. You can now start the analysis.', 'success');
         }
         
         // Analysis
