@@ -352,21 +352,24 @@
         
         /* Image Preview Styles */
         .image-previews {
-            display: flex;
-            gap: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
             margin-top: 20px;
             justify-content: center;
-            flex-wrap: wrap;
+            align-items: start;
         }
         
         .preview-container {
             text-align: center;
             background: rgba(255, 255, 255, 0.05);
             border-radius: 12px;
-            padding: 15px;
+            padding: 12px;
             border: 1px solid rgba(255, 255, 255, 0.1);
             backdrop-filter: blur(10px);
-            min-width: 200px;
+            width: 100%;
+            max-width: 250px;
+            margin: 0 auto;
         }
         
         .preview-container h4 {
@@ -377,23 +380,36 @@
         }
         
         .preview-image {
-            max-width: 200px;
+            width: 100%;
+            height: auto;
+            max-width: 100%;
             max-height: 200px;
             border-radius: 8px;
             border: 2px solid rgba(255, 255, 255, 0.2);
             box-shadow: 0 5px 15px rgba(0,0,0,0.3);
             transition: transform 0.3s ease;
+            object-fit: contain;
         }
         
         .preview-image:hover {
             transform: scale(1.05);
         }
         
-        #3dCanvas {
+        #3dCanvas, #heatmapCanvas {
+            width: 100%;
+            height: auto;
+            max-width: 100%;
+            max-height: 200px;
             border: 2px solid rgba(255, 255, 255, 0.2);
             border-radius: 8px;
             box-shadow: 0 5px 15px rgba(0,0,0,0.3);
             background: rgba(0, 0, 0, 0.3);
+            cursor: grab;
+            aspect-ratio: 1;
+        }
+        
+        #3dCanvas:active, #heatmapCanvas:active {
+            cursor: grabbing;
         }
         
         .file-input {
@@ -776,6 +792,86 @@
             .dashboard-grid {
                 grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             }
+            
+            /* Responsive image previews for mobile */
+            .image-previews {
+                grid-template-columns: 1fr;
+                gap: 10px;
+                margin-top: 15px;
+            }
+            
+            .preview-container {
+                padding: 10px;
+                max-width: 100%;
+            }
+            
+            .preview-container h4 {
+                font-size: 0.8rem;
+                margin-bottom: 8px;
+            }
+            
+            .preview-image {
+                max-height: 150px;
+            }
+            
+            #3dCanvas, #heatmapCanvas {
+                max-height: 150px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 1.8rem;
+            }
+            
+            .header p {
+                font-size: 1rem;
+            }
+            
+            .tab-content {
+                padding: 15px;
+            }
+            
+            .upload-area {
+                padding: 40px 15px;
+            }
+            
+            .image-previews {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+            
+            .preview-container {
+                padding: 8px;
+            }
+            
+            .preview-container h4 {
+                font-size: 0.75rem;
+            }
+            
+            .preview-image, #3dCanvas, #heatmapCanvas {
+                max-height: 120px;
+            }
+        }
+        
+        @media (min-width: 1200px) {
+            .image-previews {
+                grid-template-columns: repeat(3, 1fr);
+                max-width: 900px;
+                margin: 20px auto;
+            }
+            
+            .preview-container {
+                max-width: 280px;
+            }
+            
+            .preview-image, #3dCanvas, #heatmapCanvas {
+                max-height: 250px;
+            }
         }
     </style>
 </head>
@@ -1047,10 +1143,10 @@
                 reader.onload = function(e) {
                     const imageDataUrl = e.target.result;
                     
-                    uploadArea.innerHTML = `
+                uploadArea.innerHTML = `
                         <div class="upload-icon"></div>
-                        <div class="upload-text">File Selected: ${selectedFile.name}</div>
-                        <div class="upload-subtext">Size: ${(selectedFile.size / 1024 / 1024).toFixed(2)} MB</div>
+                    <div class="upload-text">File Selected: ${selectedFile.name}</div>
+                    <div class="upload-subtext">Size: ${(selectedFile.size / 1024 / 1024).toFixed(2)} MB</div>
                         
                         <div class="image-previews">
                             <div class="preview-container">
@@ -1058,14 +1154,19 @@
                                 <img src="${imageDataUrl}" alt="Original Image" class="preview-image" id="originalImage">
                             </div>
                             <div class="preview-container">
+                                <h4>Heat Map Analysis</h4>
+                                <canvas id="heatmapCanvas"></canvas>
+                            </div>
+                            <div class="preview-container">
                                 <h4>3D Visualization</h4>
-                                <canvas id="3dCanvas" width="200" height="200"></canvas>
+                                <canvas id="3dCanvas"></canvas>
                             </div>
                         </div>
                     `;
                     
-                    // Generate 3D visualization
+                    // Generate both 3D visualization and heat map
                     generate3DPreview(imageDataUrl);
+                    generateHeatMap(imageDataUrl);
                 };
                 reader.readAsDataURL(selectedFile);
                 analyzeBtn.disabled = false;
@@ -1077,6 +1178,12 @@
                 const canvas = document.getElementById('3dCanvas');
                 if (!canvas) return;
                 
+                // Set responsive canvas size
+                const container = canvas.parentElement;
+                const maxSize = Math.min(container.clientWidth - 30, 250);
+                canvas.width = maxSize;
+                canvas.height = maxSize;
+                
                 const ctx = canvas.getContext('2d');
                 const img = new Image();
                 
@@ -1087,6 +1194,58 @@
                 
                 img.src = imageDataUrl;
             }, 100);
+        }
+        
+        function generateHeatMap(imageDataUrl) {
+            setTimeout(() => {
+                const canvas = document.getElementById('heatmapCanvas');
+                if (!canvas) return;
+                
+                // Set responsive canvas size
+                const container = canvas.parentElement;
+                const maxSize = Math.min(container.clientWidth - 30, 250);
+                canvas.width = maxSize;
+                canvas.height = maxSize;
+                
+                const ctx = canvas.getContext('2d');
+                const img = new Image();
+                
+                img.onload = function() {
+                    // Create heat map effect by processing the image
+                    createHeatMapEffect(ctx, img, canvas.width, canvas.height);
+                };
+                
+                img.src = imageDataUrl;
+            }, 100);
+        }
+        
+        function createHeatMapEffect(ctx, img, width, height) {
+            // Clear canvas
+            ctx.clearRect(0, 0, width, height);
+            
+            // Create a temporary canvas to process the image
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = width;
+            tempCanvas.height = height;
+            
+            // Draw the original image scaled to canvas size
+            tempCtx.drawImage(img, 0, 0, width, height);
+            
+            // Get image data for processing
+            const imageData = tempCtx.getImageData(0, 0, width, height);
+            const data = imageData.data;
+            
+            // Create heat map data
+            const heatMapData = [];
+            for (let i = 0; i < data.length; i += 4) {
+                // Calculate grayscale intensity
+                const gray = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                heatMapData.push(gray);
+            }
+            
+            // Draw heat map visualization
+            drawHeatMap(ctx, heatMapData, width, height);
         }
         
         function create3DEffect(ctx, img, width, height) {
@@ -1198,6 +1357,137 @@
             
             // Add visual effects
             draw3DEffects(ctx, width, height);
+        }
+        
+        function drawHeatMap(ctx, heatMapData, width, height) {
+            // Clear canvas with dark background
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.95)';
+            ctx.fillRect(0, 0, width, height);
+            
+            // Create heat map using intensity values
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const index = y * width + x;
+                    if (index < heatMapData.length) {
+                        const intensity = heatMapData[index];
+                        
+                        // Convert intensity to heat map color
+                        const heatColor = getHeatMapColor(intensity);
+                        
+                        ctx.fillStyle = heatColor;
+                        ctx.fillRect(x, y, 1, 1);
+                    }
+                }
+            }
+            
+            // Add heat map legend
+            drawHeatMapLegend(ctx, width, height);
+            
+            // Add contour lines for better visualization
+            drawContourLines(ctx, heatMapData, width, height);
+        }
+        
+        function getHeatMapColor(intensity) {
+            // Normalize intensity to 0-1 range
+            const normalized = intensity / 255;
+            
+            // Create heat map color gradient
+            // Blue (cold) -> Green -> Yellow -> Red (hot)
+            let r, g, b;
+            
+            if (normalized < 0.25) {
+                // Blue to Cyan
+                const t = normalized * 4;
+                r = 0;
+                g = Math.floor(t * 255);
+                b = 255;
+            } else if (normalized < 0.5) {
+                // Cyan to Green
+                const t = (normalized - 0.25) * 4;
+                r = 0;
+                g = 255;
+                b = Math.floor((1 - t) * 255);
+            } else if (normalized < 0.75) {
+                // Green to Yellow
+                const t = (normalized - 0.5) * 4;
+                r = Math.floor(t * 255);
+                g = 255;
+                b = 0;
+            } else {
+                // Yellow to Red
+                const t = (normalized - 0.75) * 4;
+                r = 255;
+                g = Math.floor((1 - t) * 255);
+                b = 0;
+            }
+            
+            // Add some transparency for overlay effect
+            const alpha = Math.max(0.6, normalized * 0.8);
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+        
+        function drawHeatMapLegend(ctx, width, height) {
+            // Draw color legend on the right side
+            const legendWidth = 20;
+            const legendHeight = height - 40;
+            const legendX = width - legendWidth - 10;
+            const legendY = 20;
+            
+            // Create gradient for legend
+            const gradient = ctx.createLinearGradient(0, legendY, 0, legendY + legendHeight);
+            gradient.addColorStop(0, 'rgba(0, 0, 255, 0.8)');     // Blue (cold)
+            gradient.addColorStop(0.33, 'rgba(0, 255, 255, 0.8)'); // Cyan
+            gradient.addColorStop(0.66, 'rgba(0, 255, 0, 0.8)');   // Green
+            gradient.addColorStop(0.83, 'rgba(255, 255, 0, 0.8)'); // Yellow
+            gradient.addColorStop(1, 'rgba(255, 0, 0, 0.8)');     // Red (hot)
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(legendX, legendY, legendWidth, legendHeight);
+            
+            // Add legend labels
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.font = '10px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText('High', legendX + legendWidth + 5, legendY + 10);
+            ctx.fillText('Low', legendX + legendWidth + 5, legendY + legendHeight - 5);
+        }
+        
+        function drawContourLines(ctx, heatMapData, width, height) {
+            // Draw contour lines to show intensity levels
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 0.5;
+            
+            const contourLevels = [0.2, 0.4, 0.6, 0.8];
+            
+            contourLevels.forEach(level => {
+                const threshold = level * 255;
+                
+                ctx.beginPath();
+                let hasStarted = false;
+                
+                for (let y = 0; y < height; y += 2) {
+                    for (let x = 0; x < width; x += 2) {
+                        const index = y * width + x;
+                        if (index < heatMapData.length) {
+                            const currentIntensity = heatMapData[index];
+                            const nextIntensity = (index + 2 < heatMapData.length) ? heatMapData[index + 2] : currentIntensity;
+                            
+                            // Check for contour crossing
+                            if ((currentIntensity < threshold && nextIntensity >= threshold) ||
+                                (currentIntensity >= threshold && nextIntensity < threshold)) {
+                                
+                                if (!hasStarted) {
+                                    ctx.moveTo(x, y);
+                                    hasStarted = true;
+                                } else {
+                                    ctx.lineTo(x, y);
+                                }
+                            }
+                        }
+                    }
+                }
+                ctx.stroke();
+            });
         }
         
         function rotatePoint(point, rotX, rotY) {
@@ -1361,8 +1651,12 @@
                         <img src="${demoImageUrl}" alt="Demo Image" class="preview-image" id="originalImage">
                     </div>
                     <div class="preview-container">
+                        <h4>Heat Map Analysis</h4>
+                        <canvas id="heatmapCanvas"></canvas>
+                    </div>
+                    <div class="preview-container">
                         <h4>3D Visualization</h4>
-                        <canvas id="3dCanvas" width="200" height="200"></canvas>
+                        <canvas id="3dCanvas"></canvas>
                     </div>
                 </div>
             `;
@@ -1371,10 +1665,11 @@
             rotationX = 0;
             rotationY = 0;
             
-            // Generate 3D preview for demo
+            // Generate both 3D preview and heat map for demo
             generate3DPreview(demoImageUrl);
+            generateHeatMap(demoImageUrl);
             analyzeBtn.disabled = false;
-            showAlert('Demo image loaded! Drag the 3D visualization to rotate it. You can now start the analysis.', 'success');
+            showAlert('Demo image loaded! View the heat map analysis and drag the 3D visualization to rotate it. You can now start the analysis.', 'success');
         }
         
         // Analysis
@@ -1641,6 +1936,41 @@
             setTimeout(() => sendMessage(), 500);
         }
         
+        // Window resize handler for responsive canvases
+        window.addEventListener('resize', function() {
+            // Re-generate canvases if they exist
+            const heatmapCanvas = document.getElementById('heatmapCanvas');
+            const canvas3D = document.getElementById('3dCanvas');
+            
+            if (heatmapCanvas && depthMap) {
+                // Re-generate heat map with new size
+                setTimeout(() => {
+                    const ctx = heatmapCanvas.getContext('2d');
+                    const container = heatmapCanvas.parentElement;
+                    const maxSize = Math.min(container.clientWidth - 30, 250);
+                    heatmapCanvas.width = maxSize;
+                    heatmapCanvas.height = maxSize;
+                    
+                    // Re-draw heat map
+                    drawHeatMap(ctx, depthMap, heatmapCanvas.width, heatmapCanvas.height);
+                }, 100);
+            }
+            
+            if (canvas3D && depthMap) {
+                // Re-generate 3D visualization with new size
+                setTimeout(() => {
+                    const ctx = canvas3D.getContext('2d');
+                    const container = canvas3D.parentElement;
+                    const maxSize = Math.min(container.clientWidth - 30, 250);
+                    canvas3D.width = maxSize;
+                    canvas3D.height = maxSize;
+                    
+                    // Re-draw 3D visualization
+                    draw3DVisualization(ctx, depthMap, canvas3D.width, canvas3D.height);
+                }, 100);
+            }
+        });
+
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
             // Add some demo data to dashboard
