@@ -1,0 +1,808 @@
+"""
+Flask API Server for Quantum-Enhanced Medical Imaging System
+RESTful endpoints for image analysis, chat, dashboard, and report generation
+"""
+
+import os
+import sys
+from flask import Flask, request, jsonify, send_file, render_template
+from flask_cors import CORS
+from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity
+import logging
+from typing import Dict, List, Optional, Any
+import json
+import uuid
+from datetime import datetime, timedelta
+from pathlib import Path
+import tempfile
+import base64
+from io import BytesIO
+from PIL import Image
+import numpy as np
+import traceback
+
+# Import custom modules
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
+from quantum_circuits import QuantumMedicalImageProcessor
+from llava_medical import LLaVAMedicalModel, MedicalImagePreprocessor
+from explainable_ai import MedicalExplainabilityEngine
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Initialize Flask app
+app = Flask(__name__)
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'quantum-medical-secret-key')
+app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'jwt-secret-key')
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)
+app.config['MAX_CONTENT_LENGTH'] = int(os.getenv('MAX_CONTENT_LENGTH', 16 * 1024 * 1024))  # 16MB
+
+# Initialize extensions
+CORS(app, origins=os.getenv('ALLOWED_ORIGINS', 'http://localhost:3000,http://localhost:5000').split(','))
+jwt = JWTManager(app)
+
+# Global variables for model instances
+llava_model = None
+explainability_engine = None
+quantum_processor = None
+
+# Configuration
+CONFIG = {
+    'model_path': os.getenv('LLAVA_MODEL_PATH', 'microsoft/llava-med-v1.5-mistral-7b'),
+    'max_image_size': int(os.getenv('MAX_IMAGE_SIZE', 1024)),
+    'supported_formats': os.getenv('SUPPORTED_FORMATS', 'jpg,jpeg,png,dicom,nii').split(','),
+    'confidence_threshold': float(os.getenv('CONFIDENCE_THRESHOLD', 0.7)),
+    'quantum_qubits': 8,
+    'quantum_layers': 2,
+    'device': 'cuda' if os.getenv('CUDA_AVAILABLE', 'false').lower() == 'true' else 'cpu'
+}
+
+# In-memory storage for session data (in production, use Redis or database)
+analysis_sessions = {}
+chat_sessions = {}
+
+
+def initialize_models():
+    """Initialize ML models"""
+    global llava_model, explainability_engine, quantum_processor
+    
+    try:
+        logger.info("Initializing models...")
+        
+        # Initialize LLaVA-Med model
+        llava_model = LLaVAMedicalModel(CONFIG)
+        
+        # Initialize quantum processor
+        quantum_processor = QuantumMedicalImageProcessor(CONFIG)
+        
+        # Initialize explainability engine (mock for now)
+        # explainability_engine = MedicalExplainabilityEngine(llava_model.model, CONFIG)
+        
+        logger.info("Models initialized successfully")
+        
+    except Exception as e:
+        logger.error(f"Error initializing models: {str(e)}")
+        # Initialize with mock models for development
+        llava_model = None
+        explainability_engine = None
+        quantum_processor = None
+
+
+def startup():
+    """Initialize application on startup"""
+    initialize_models()
+
+# Initialize models on startup
+startup()
+
+
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    """Handle file too large error"""
+    return jsonify({
+        'error': 'File too large',
+        'message': 'Maximum file size is 16MB',
+        'max_size': app.config['MAX_CONTENT_LENGTH']
+    }), 413
+
+
+@app.errorhandler(500)
+def internal_server_error(error):
+    """Handle internal server errors"""
+    logger.error(f"Internal server error: {str(error)}")
+    return jsonify({
+        'error': 'Internal server error',
+        'message': 'An unexpected error occurred. Please try again.'
+    }), 500
+
+
+# Authentication endpoints
+@app.route('/api/auth/login', methods=['POST'])
+def login():
+    """User authentication endpoint"""
+    try:
+        data = request.get_json()
+        username = data.get('username')
+        password = data.get('password')
+        
+        # Simple authentication (in production, use proper authentication)
+        if username and password:
+            access_token = create_access_token(identity=username)
+            return jsonify({
+                'access_token': access_token,
+                'message': 'Login successful',
+                'user': {'username': username}
+            })
+        else:
+            return jsonify({'error': 'Invalid credentials'}), 401
+            
+    except Exception as e:
+        logger.error(f"Login error: {str(e)}")
+        return jsonify({'error': 'Login failed'}), 500
+
+
+@app.route('/api/auth/validate', methods=['GET'])
+@jwt_required()
+def validate_token():
+    """Validate JWT token"""
+    current_user = get_jwt_identity()
+    return jsonify({'valid': True, 'user': current_user})
+
+
+# Core API endpoints
+@app.route('/api/analyze', methods=['POST'])
+@jwt_required()
+def analyze_medical_image():
+    """
+    Analyze medical image with quantum-enhanced LLaVA-Med
+    
+    Expected form data:
+    - image: Image file
+    - query: Medical query (optional)
+    - patient_context: JSON string with patient information (optional)
+    """
+    try:
+        current_user = get_jwt_identity()
+        
+        # Check if image is provided
+        if 'image' not in request.files:
+            return jsonify({'error': 'No image provided'}), 400
+        
+        image_file = request.files['image']
+        if image_file.filename == '':
+            return jsonify({'error': 'No image selected'}), 400
+        
+        # Get query and patient context
+        query = request.form.get('query', 'Please analyze this medical image and provide diagnostic insights.')
+        patient_context_str = request.form.get('patient_context', '{}')
+        
+        try:
+            patient_context = json.loads(patient_context_str)
+        except json.JSONDecodeError:
+            patient_context = {}
+        
+        # Save uploaded image temporarily
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
+            image_file.save(temp_file.name)
+            temp_image_path = temp_file.name
+        
+        try:
+            # Analyze image
+            if llava_model:
+                logger.info("Using LLaVA model for analysis")
+                analysis_result = llava_model.analyze_medical_image(
+                    temp_image_path, query, patient_context
+                )
+                logger.info(f"LLaVA analysis result keys: {analysis_result.keys()}")
+            else:
+                logger.info("Using mock analysis")
+                # Mock analysis for development
+                analysis_result = {
+                    'llava_response': f'Mock analysis: The medical image shows typical characteristics. Query: {query}',
+                    'quantum_features': np.random.rand(256).tolist(),  # Convert to list
+                    'uncertainty_metrics': {
+                        'confidence': 0.85,
+                        'entropy': 0.3,
+                        'quantum_uncertainty': 0.15
+                    },
+                    'image_metadata': {
+                        'format': 'png',
+                        'size': [512, 512],
+                        'source_path': temp_image_path
+                    },
+                    'processing_info': {
+                        'quantum_enhanced': True,
+                        'model_used': CONFIG['model_path'],
+                        'timestamp': str(datetime.now())
+                    }
+                }
+            
+            # Generate session ID
+            session_id = str(uuid.uuid4())
+            
+            # Store analysis in session
+            analysis_sessions[session_id] = {
+                'user': current_user,
+                'timestamp': datetime.now(),
+                'analysis': analysis_result,
+                'query': query,
+                'patient_context': patient_context
+            }
+            
+            # Clean up temporary file
+            os.unlink(temp_image_path)
+            
+            # Convert numpy arrays to lists for JSON serialization
+            def convert_numpy(obj):
+                if isinstance(obj, np.ndarray):
+                    logger.info(f"Converting numpy array: shape={obj.shape}, dtype={obj.dtype}")
+                    return obj.tolist()
+                elif isinstance(obj, np.integer):
+                    logger.info(f"Converting numpy integer: {obj}")
+                    return int(obj)
+                elif isinstance(obj, np.floating):
+                    logger.info(f"Converting numpy float: {obj}")
+                    return float(obj)
+                elif isinstance(obj, np.bool_):
+                    logger.info(f"Converting numpy bool: {obj}")
+                    return bool(obj)
+                elif isinstance(obj, dict):
+                    logger.info(f"Converting dict with {len(obj)} keys")
+                    return {key: convert_numpy(value) for key, value in obj.items()}
+                elif isinstance(obj, list):
+                    logger.info(f"Converting list with {len(obj)} items")
+                    return [convert_numpy(item) for item in obj]
+                elif isinstance(obj, tuple):
+                    logger.info(f"Converting tuple with {len(obj)} items")
+                    return tuple(convert_numpy(item) for item in obj)
+                else:
+                    return obj
+            
+            # Convert analysis result for JSON serialization
+            logger.info("Converting analysis result for JSON serialization...")
+            logger.info(f"Analysis result type: {type(analysis_result)}")
+            logger.info(f"Analysis result keys: {analysis_result.keys() if isinstance(analysis_result, dict) else 'Not a dict'}")
+            
+            serializable_result = convert_numpy(analysis_result)
+            logger.info("Conversion completed successfully")
+            logger.info(f"Serializable result type: {type(serializable_result)}")
+            
+            # Test JSON serialization before returning
+            try:
+                json.dumps(serializable_result)
+                logger.info("✅ Analysis result is JSON serializable")
+            except Exception as json_error:
+                logger.error(f"❌ JSON serialization test failed: {json_error}")
+                return jsonify({
+                    'error': 'JSON serialization failed',
+                    'message': str(json_error)
+                }), 500
+            
+            # Return result
+            return jsonify({
+                'session_id': session_id,
+                'analysis': serializable_result,
+                'status': 'success'
+            })
+            
+        except Exception as e:
+            # Clean up temporary file
+            if os.path.exists(temp_image_path):
+                os.unlink(temp_image_path)
+            
+            logger.error(f"Analysis error: {str(e)}")
+            logger.error(traceback.format_exc())
+            
+            # Try to identify the problematic object
+            try:
+                import json
+                json.dumps(analysis_result)
+            except Exception as json_error:
+                logger.error(f"JSON serialization error: {str(json_error)}")
+                logger.error(f"Problematic object type: {type(analysis_result)}")
+            
+            return jsonify({
+                'error': 'Analysis failed',
+                'message': str(e)
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"Outer analysis error: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            'error': 'Analysis failed',
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/chat', methods=['POST'])
+@jwt_required()
+def medical_chat():
+    """
+    Interactive medical consultation chat
+    
+    Expected JSON:
+    {
+        "message": "User message",
+        "session_id": "optional_session_id",
+        "image_data": "optional_base64_image",
+        "patient_history": "optional_patient_history"
+    }
+    """
+    try:
+        current_user = get_jwt_identity()
+        data = request.get_json()
+        
+        message = data.get('message', '')
+        session_id = data.get('session_id', str(uuid.uuid4()))
+        image_data = data.get('image_data')
+        patient_history = data.get('patient_history', '')
+        
+        if not message:
+            return jsonify({'error': 'No message provided'}), 400
+        
+        # Initialize chat session if not exists
+        if session_id not in chat_sessions:
+            chat_sessions[session_id] = {
+                'user': current_user,
+                'created_at': datetime.now(),
+                'messages': []
+            }
+        
+        # Add user message to session
+        chat_sessions[session_id]['messages'].append({
+            'role': 'user',
+            'content': message,
+            'timestamp': datetime.now()
+        })
+        
+        # Process image if provided
+        image_analysis = None
+        if image_data:
+            try:
+                # Decode base64 image
+                image_bytes = base64.b64decode(image_data.split(',')[1] if ',' in image_data else image_data)
+                image = Image.open(BytesIO(image_bytes))
+                
+                # Save temporarily and analyze
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
+                    image.save(temp_file.name)
+                    
+                    if llava_model:
+                        image_analysis = llava_model.analyze_medical_image(
+                            temp_file.name, message, {'patient_history': patient_history}
+                        )
+                    
+                    os.unlink(temp_file.name)
+                    
+            except Exception as e:
+                logger.error(f"Image processing error in chat: {str(e)}")
+        
+        # Generate response
+        if image_analysis:
+            response = f"Based on the medical image analysis: {image_analysis['llava_response']}"
+            if 'uncertainty_metrics' in image_analysis:
+                confidence = image_analysis['uncertainty_metrics'].get('confidence', 0.5)
+                response += f"\\n\\nConfidence level: {confidence:.2f}"
+        else:
+            # Generate text-based medical consultation response
+            response = generate_medical_consultation_response(message, patient_history)
+        
+        # Add assistant response to session
+        chat_sessions[session_id]['messages'].append({
+            'role': 'assistant',
+            'content': response,
+            'timestamp': datetime.now(),
+            'image_analysis': image_analysis is not None
+        })
+        
+        return jsonify({
+            'session_id': session_id,
+            'response': response,
+            'message_count': len(chat_sessions[session_id]['messages']),
+            'status': 'success'
+        })
+        
+    except Exception as e:
+        logger.error(f"Chat error: {str(e)}")
+        return jsonify({
+            'error': 'Chat failed',
+            'message': str(e)
+        }), 500
+
+
+def generate_medical_consultation_response(message: str, patient_history: str) -> str:
+    """Generate medical consultation response (mock implementation)"""
+    # In production, this would use OpenAI GPT-4 or similar
+    responses = [
+        "Thank you for your question. Based on the information provided, I recommend conducting a thorough clinical examination.",
+        "This is an interesting case. Could you provide more details about the patient's symptoms and medical history?",
+        "From a diagnostic perspective, we should consider differential diagnoses and additional imaging if necessary.",
+        "The symptoms you've described warrant careful evaluation. Please ensure proper patient assessment protocols are followed.",
+        "This case requires multidisciplinary consultation. I recommend discussing with relevant specialists."
+    ]
+    
+    # Simple keyword-based response selection (very basic)
+    message_lower = message.lower()
+    if 'pain' in message_lower:
+        return "Pain assessment is crucial. Please evaluate pain intensity, location, duration, and associated symptoms. Consider appropriate pain management strategies while investigating underlying causes."
+    elif 'diagnosis' in message_lower:
+        return "For accurate diagnosis, comprehensive patient evaluation including history, physical examination, and appropriate diagnostic tests is essential. Consider differential diagnoses and evidence-based diagnostic criteria."
+    elif 'treatment' in message_lower:
+        return "Treatment recommendations should be based on confirmed diagnosis, patient-specific factors, and current clinical guidelines. Please ensure proper patient consent and monitoring protocols."
+    else:
+        return f"Thank you for your consultation request. {responses[hash(message) % len(responses)]} Please provide additional clinical details for more specific guidance."
+
+
+@app.route('/api/dashboard/<session_id>', methods=['GET'])
+@jwt_required()
+def get_dashboard(session_id):
+    """
+    Get analytical dashboard for analysis session
+    """
+    try:
+        current_user = get_jwt_identity()
+        
+        if session_id not in analysis_sessions:
+            return jsonify({'error': 'Session not found'}), 404
+        
+        session_data = analysis_sessions[session_id]
+        
+        # Check if user owns the session
+        if session_data['user'] != current_user:
+            return jsonify({'error': 'Unauthorized access'}), 403
+        
+        # Generate dashboard data
+        dashboard_data = generate_dashboard_data(session_data['analysis'])
+        
+        return jsonify({
+            'session_id': session_id,
+            'dashboard': dashboard_data,
+            'metadata': {
+                'created_at': session_data['timestamp'].isoformat(),
+                'query': session_data['query']
+            },
+            'status': 'success'
+        })
+        
+    except Exception as e:
+        logger.error(f"Dashboard error: {str(e)}")
+        return jsonify({
+            'error': 'Dashboard generation failed',
+            'message': str(e)
+        }), 500
+
+
+def generate_dashboard_data(analysis_result: Dict[str, Any]) -> Dict[str, Any]:
+    """Generate dashboard visualization data"""
+    
+    # Extract key metrics
+    uncertainty_metrics = analysis_result.get('uncertainty_metrics', {})
+    confidence = uncertainty_metrics.get('confidence', 0.5)
+    quantum_uncertainty = uncertainty_metrics.get('quantum_uncertainty', 0.5)
+    
+    # Generate dashboard components
+    dashboard = {
+        'confidence_score': {
+            'value': confidence,
+            'label': 'Overall Confidence',
+            'color': 'green' if confidence > 0.8 else 'yellow' if confidence > 0.6 else 'red'
+        },
+        'quantum_enhancement': {
+            'enabled': analysis_result.get('processing_info', {}).get('quantum_enhanced', False),
+            'uncertainty': quantum_uncertainty,
+            'label': 'Quantum Uncertainty'
+        },
+        'analysis_summary': {
+            'response': analysis_result.get('llava_response', 'No analysis available'),
+            'timestamp': analysis_result.get('processing_info', {}).get('timestamp', 'Unknown')
+        },
+        'risk_indicators': generate_risk_indicators(analysis_result),
+        'recommendations': generate_recommendations(analysis_result)
+    }
+    
+    return dashboard
+
+
+def generate_risk_indicators(analysis_result: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Generate risk indicators from analysis"""
+    indicators = []
+    
+    confidence = analysis_result.get('uncertainty_metrics', {}).get('confidence', 0.5)
+    
+    if confidence < 0.6:
+        indicators.append({
+            'level': 'high',
+            'message': 'Low confidence prediction - requires additional verification',
+            'recommendation': 'Consider additional imaging or specialist consultation'
+        })
+    elif confidence < 0.8:
+        indicators.append({
+            'level': 'medium',
+            'message': 'Moderate confidence - routine follow-up recommended',
+            'recommendation': 'Monitor patient condition and symptoms'
+        })
+    else:
+        indicators.append({
+            'level': 'low',
+            'message': 'High confidence prediction',
+            'recommendation': 'Proceed with standard clinical protocols'
+        })
+    
+    return indicators
+
+
+def generate_recommendations(analysis_result: Dict[str, Any]) -> List[str]:
+    """Generate clinical recommendations"""
+    recommendations = [
+        "Correlate findings with clinical presentation",
+        "Review patient history and symptoms",
+        "Consider follow-up imaging if indicated"
+    ]
+    
+    confidence = analysis_result.get('uncertainty_metrics', {}).get('confidence', 0.5)
+    
+    if confidence < 0.7:
+        recommendations.extend([
+            "Seek second opinion or specialist consultation",
+            "Consider additional diagnostic modalities"
+        ])
+    
+    return recommendations
+
+
+@app.route('/api/report', methods=['POST'])
+@jwt_required()
+def generate_report():
+    """
+    Generate PDF medical report
+    
+    Expected JSON:
+    {
+        "session_id": "analysis_session_id",
+        "patient_info": {
+            "name": "Patient Name",
+            "id": "Patient ID",
+            "dob": "Date of Birth",
+            "study_date": "Study Date"
+        },
+        "clinic_info": {
+            "name": "Clinic Name",
+            "address": "Clinic Address",
+            "phone": "Phone Number"
+        }
+    }
+    """
+    try:
+        current_user = get_jwt_identity()
+        data = request.get_json()
+        
+        session_id = data.get('session_id')
+        patient_info = data.get('patient_info', {})
+        clinic_info = data.get('clinic_info', {})
+        
+        if not session_id or session_id not in analysis_sessions:
+            return jsonify({'error': 'Invalid session ID'}), 400
+        
+        session_data = analysis_sessions[session_id]
+        
+        # Check authorization
+        if session_data['user'] != current_user:
+            return jsonify({'error': 'Unauthorized access'}), 403
+        
+        # Generate PDF report
+        report_path = create_medical_report(
+            session_data['analysis'],
+            patient_info,
+            clinic_info,
+            session_data['query']
+        )
+        
+        # Return file
+        return send_file(
+            report_path,
+            as_attachment=True,
+            download_name=f"medical_report_{session_id[:8]}.pdf",
+            mimetype='application/pdf'
+        )
+        
+    except Exception as e:
+        logger.error(f"Report generation error: {str(e)}")
+        return jsonify({
+            'error': 'Report generation failed',
+            'message': str(e)
+        }), 500
+
+
+def create_medical_report(analysis_result: Dict[str, Any], patient_info: Dict[str, Any],
+                         clinic_info: Dict[str, Any], query: str) -> str:
+    """Create PDF medical report"""
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    
+    # Create temporary file for PDF
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+        pdf_path = temp_file.name
+    
+    # Create PDF document
+    doc = SimpleDocTemplate(pdf_path, pagesize=letter)
+    styles = getSampleStyleSheet()
+    story = []
+    
+    # Header
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=18,
+        spaceAfter=30,
+        alignment=1  # Center alignment
+    )
+    
+    story.append(Paragraph("MEDICAL IMAGING ANALYSIS REPORT", title_style))
+    story.append(Spacer(1, 20))
+    
+    # Clinic Information
+    if clinic_info:
+        clinic_data = [
+            ['Clinic:', clinic_info.get('name', 'Not specified')],
+            ['Address:', clinic_info.get('address', 'Not specified')],
+            ['Phone:', clinic_info.get('phone', 'Not specified')]
+        ]
+        clinic_table = Table(clinic_data)
+        clinic_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10)
+        ]))
+        story.append(clinic_table)
+        story.append(Spacer(1, 20))
+    
+    # Patient Information
+    if patient_info:
+        patient_data = [
+            ['Patient Name:', patient_info.get('name', 'Not specified')],
+            ['Patient ID:', patient_info.get('id', 'Not specified')],
+            ['Date of Birth:', patient_info.get('dob', 'Not specified')],
+            ['Study Date:', patient_info.get('study_date', datetime.now().strftime('%Y-%m-%d'))]
+        ]
+        patient_table = Table(patient_data)
+        patient_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        story.append(patient_table)
+        story.append(Spacer(1, 20))
+    
+    # Analysis Results
+    story.append(Paragraph("ANALYSIS RESULTS", styles['Heading2']))
+    story.append(Spacer(1, 12))
+    
+    # Query
+    story.append(Paragraph(f"<b>Clinical Query:</b> {query}", styles['Normal']))
+    story.append(Spacer(1, 12))
+    
+    # Analysis Response
+    response = analysis_result.get('llava_response', 'No analysis available')
+    story.append(Paragraph(f"<b>Analysis:</b> {response}", styles['Normal']))
+    story.append(Spacer(1, 12))
+    
+    # Confidence Metrics
+    metrics = analysis_result.get('uncertainty_metrics', {})
+    confidence = metrics.get('confidence', 0.5)
+    
+    story.append(Paragraph("CONFIDENCE METRICS", styles['Heading2']))
+    story.append(Spacer(1, 12))
+    
+    metrics_data = [
+        ['Overall Confidence:', f"{confidence:.2f} ({confidence*100:.1f}%)"],
+        ['Quantum Enhancement:', 'Enabled' if analysis_result.get('processing_info', {}).get('quantum_enhanced') else 'Disabled'],
+        ['Processing Timestamp:', analysis_result.get('processing_info', {}).get('timestamp', 'Unknown')]
+    ]
+    
+    metrics_table = Table(metrics_data)
+    metrics_table.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10)
+    ]))
+    story.append(metrics_table)
+    story.append(Spacer(1, 20))
+    
+    # Recommendations
+    recommendations = generate_recommendations(analysis_result)
+    story.append(Paragraph("RECOMMENDATIONS", styles['Heading2']))
+    story.append(Spacer(1, 12))
+    
+    for i, rec in enumerate(recommendations, 1):
+        story.append(Paragraph(f"{i}. {rec}", styles['Normal']))
+    
+    story.append(Spacer(1, 30))
+    
+    # Footer
+    story.append(Paragraph("This report was generated by the Quantum-Enhanced Medical Imaging AI System.", styles['Normal']))
+    story.append(Paragraph("Please correlate with clinical findings and patient history.", styles['Normal']))
+    
+    # Build PDF
+    doc.build(story)
+    
+    return pdf_path
+
+
+# System status endpoints
+@app.route('/api/status', methods=['GET'])
+def system_status():
+    """Get system status"""
+    return jsonify({
+        'status': 'online',
+        'models': {
+            'llava_med': llava_model is not None,
+            'quantum_processor': quantum_processor is not None,
+            'explainability_engine': explainability_engine is not None
+        },
+        'config': {
+            'max_image_size': CONFIG['max_image_size'],
+            'supported_formats': CONFIG['supported_formats'],
+            'device': CONFIG['device']
+        },
+        'sessions': {
+            'active_analysis_sessions': len(analysis_sessions),
+            'active_chat_sessions': len(chat_sessions)
+        },
+        'timestamp': datetime.now().isoformat()
+    })
+
+
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """Health check endpoint"""
+    return jsonify({'status': 'healthy', 'timestamp': datetime.now().isoformat()})
+
+
+# Utility endpoints
+@app.route('/api/sessions/cleanup', methods=['POST'])
+@jwt_required()
+def cleanup_sessions():
+    """Clean up old sessions"""
+    try:
+        current_time = datetime.now()
+        cleaned_analysis = 0
+        cleaned_chat = 0
+        
+        # Clean analysis sessions older than 24 hours
+        for session_id, session_data in list(analysis_sessions.items()):
+            if current_time - session_data['timestamp'] > timedelta(hours=24):
+                del analysis_sessions[session_id]
+                cleaned_analysis += 1
+        
+        # Clean chat sessions older than 24 hours
+        for session_id, session_data in list(chat_sessions.items()):
+            if current_time - session_data['created_at'] > timedelta(hours=24):
+                del chat_sessions[session_id]
+                cleaned_chat += 1
+        
+        return jsonify({
+            'cleaned_analysis_sessions': cleaned_analysis,
+            'cleaned_chat_sessions': cleaned_chat,
+            'remaining_analysis_sessions': len(analysis_sessions),
+            'remaining_chat_sessions': len(chat_sessions)
+        })
+        
+    except Exception as e:
+        logger.error(f"Session cleanup error: {str(e)}")
+        return jsonify({'error': 'Cleanup failed'}), 500
+
+
+if __name__ == '__main__':
+    # Development server
+    app.run(
+        host='0.0.0.0',
+        port=int(os.getenv('PORT', 5000)),
+        debug=os.getenv('FLASK_ENV') == 'development'
+    )
